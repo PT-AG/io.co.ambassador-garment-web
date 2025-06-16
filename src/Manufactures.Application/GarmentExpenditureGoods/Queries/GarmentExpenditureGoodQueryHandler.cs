@@ -265,7 +265,7 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
                             //price = Convert.ToDecimal((from aa in sumbasicPrice where aa.RO == a.RONo select aa.BasicPrice / aa.Count).FirstOrDefault()),
                             //price = Convert.ToDecimal((from aa in sumbasicPrice where aa.RO == a.RONo select aa.AvgBasicPrice).FirstOrDefault()),
                             //buyerCode = (from cost in costCalculation.data where cost.ro == a.RONo select cost.buyerCode).FirstOrDefault(),
-                            expenditureDate = a.ExpenditureDate,
+                            expenditureDate = a.ExpenditureDate.AddHours(7),
                             expenditureGoodNo = a.ExpenditureGoodNo,
                             expenditureGoodItemId = b.Identity,
                             //buyerArticle = a.BuyerCode + " " + a.Article,
@@ -278,7 +278,7 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
                             invoice = a.Invoice,
                             //colour = b.Description,
                             qty = b.Quantity,
-                            productCode = d.ProductCode,
+                            //productCode = d.ProductCode,
                             UId = a.UId
                             //name = (from cost in costCalculation.data where cost.ro == a.RONo select cost.comodityName).FirstOrDefault(),
                             //unitname = a.UnitName
@@ -313,12 +313,15 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
             string[] exceptionBonNo = { "EGEAG223100009", "EGEAG223100060" };
             foreach (var item in querySum)
 			{
-                var peb = Pebs.data.FirstOrDefault(x => x.BonNo.Trim() == item.invoices);
+                var peb = Pebs.data
+                    .GroupBy(s => new { s.BCNo,s.BCDate,s.BuyerName,s.Country,s.CurrencyCode,s.BonNo})
+                    .Select(s => new {s.Key.BCNo,s.Key.BCDate,s.Key.BuyerName,s.Key.Country,s.Key.CurrencyCode,s.Key.BonNo, Nominal = s.Sum(r => r.Nominal) })
+                    .FirstOrDefault(x => x.BonNo.Trim() == item.invoices);
                 DateTime? non = null;
 
                 var remark = Codes.FirstOrDefault(x => x.Code == item.productCode);
 
-                var finalRemark = remark != null ? " - " + remark.Composition + " " + remark.Width + " " + remark.Const + " " + remark.Yarn : "";
+                var finalRemark = remark != null ? " - " + remark.Composition/* + " " + remark.Width + " " + remark.Const + " " + remark.Yarn*/ : "";
 
                 GarmentMonitoringExpenditureGoodDto dto = new GarmentMonitoringExpenditureGoodDto
                 {
@@ -334,7 +337,7 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
 					expenditureDate = item.expenditureDates,
 					qty = item.qty,
                     comodityCode = item.comodityCode,
-                    comodityName = item.comodityName + " - " + (exceptionBonNo.Contains(item.expendituregoodNo) ? item.UId:  finalRemark),
+                    comodityName = item.comodityName /*+ " - " + (exceptionBonNo.Contains(item.expendituregoodNo) ? item.UId:  finalRemark)*/,
                     uomUnit = item.uomUnit,
                     price = (decimal)((peb == null ? 0 : peb.Nominal) * (peb == null ? 0 : peb.Quantity)),
                     //colour = item.color,
@@ -347,7 +350,7 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
 				};
 				monitoringDtos.Add(dto);
 			}
-			listViewModel.garmentMonitorings = monitoringDtos;
+			listViewModel.garmentMonitorings = monitoringDtos.OrderByDescending(s => s.pebDate).ThenBy(s => s.pebNo).ToList();
 			return listViewModel;
 		}
 	}

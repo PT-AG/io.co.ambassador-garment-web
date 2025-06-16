@@ -255,12 +255,12 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
 			//                      unitname = a.UnitName};
 
 			var Query = (from a in (from aa in garmentExpenditureGoodRepository.Query
-								   where aa.ExpenditureDate >= dateFrom && aa.ExpenditureDate <= dateTo
+								   where aa.ExpenditureDate.AddHours(7).Date >= dateFrom.Date && aa.ExpenditureDate.AddHours(7).Date <= dateTo.Date
 								   select aa)
 						join b in garmentExpenditureGoodItemRepository.Query on a.Identity equals b.ExpenditureGoodId
-						where a.ExpenditureDate >= dateFrom && a.ExpenditureDate <= dateTo
-
-
+						join c in garmentPreparingRepository.Query on a.RONo equals c.RONo
+						join d in garmentPreparingItemRepository.Query on c.Identity equals d.GarmentPreparingId
+						where d.CustomsCategory == "FASILITAS" && a.ExpenditureDate.AddHours(7).Date >= dateFrom.Date && a.ExpenditureDate.AddHours(7).Date <= dateTo.Date
 						//select new monitoringView { fc = (from aa in sumFCs where aa.RO == a.RONo select aa.FC / aa.Count).FirstOrDefault(),
 						select new monitoringView
 						{
@@ -268,7 +268,7 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
 							//price = Convert.ToDecimal((from aa in sumbasicPrice where aa.RO == a.RONo select aa.BasicPrice / aa.Count).FirstOrDefault()),
 							//price = Convert.ToDecimal((from aa in sumbasicPrice where aa.RO == a.RONo select aa.AvgBasicPrice).FirstOrDefault()),
 							//buyerCode = (from cost in costCalculation.data where cost.ro == a.RONo select cost.buyerCode).FirstOrDefault(),
-							expenditureDate = a.ExpenditureDate,
+							expenditureDate = a.ExpenditureDate.AddHours(7).Date,
 							expenditureGoodNo = a.ExpenditureGoodNo,
 							expenditureGoodItemId = b.Identity,
 							//buyerArticle = a.BuyerCode + " " + a.Article,
@@ -281,7 +281,7 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
 							invoice = a.Invoice,
 							//colour = b.Description,
 							qty = b.Quantity,
-                            productCode = d.ProductCode,
+                            //productCode = d.ProductCode,
                             //name = (from cost in costCalculation.data where cost.ro == a.RONo select cost.comodityName).FirstOrDefault(),
                             //unitname = a.UnitName,
 							UId = a.UId
@@ -315,7 +315,10 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
             string[] exceptionBonNo = { "EGEAG223100009", "EGEAG223100060" };
             foreach (var item in querySum)
 			{
-				var peb = Pebs.data.FirstOrDefault(x => x.BonNo.Trim() == item.invoices);
+                var peb = Pebs.data
+                   .GroupBy(s => new { s.BCNo, s.BCDate, s.BuyerName, s.Country, s.CurrencyCode, s.BonNo })
+                   .Select(s => new { s.Key.BCNo, s.Key.BCDate, s.Key.BuyerName, s.Key.Country, s.Key.CurrencyCode, s.Key.BonNo, Nominal = s.Sum(r => r.Nominal) })
+                   .FirstOrDefault(x => x.BonNo.Trim() == item.invoices);
                 //DateTime? non = null;
                 var remark = Codes.FirstOrDefault(x => x.Code == item.productCode);
 
@@ -335,7 +338,7 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
 					expenditureDate = item.expenditureDates,
 					qty = item.qty,
 					comodityCode = item.comodityCode,
-                    comodityName = item.comodityName + " - " + (exceptionBonNo.Contains(item.expendituregoodNo) ? item.UId : finalRemark),
+                    comodityName = item.comodityName /*+ " - " + (exceptionBonNo.Contains(item.expendituregoodNo) ? item.UId : finalRemark)*/,
                     uomUnit = item.uomUnit,
 					price = (decimal)(peb == null ? 0 : peb.Nominal),
 					//colour = item.color,
@@ -379,7 +382,7 @@ namespace Manufactures.Application.GarmentExpenditureGoods.Queries
 
 			};
 			monitoringDtos.Add(dtos);
-			listViewModel.garmentMonitorings = monitoringDtos;
+			listViewModel.garmentMonitorings = monitoringDtos.OrderByDescending(s => s.pebDate).ThenBy(s => s.pebNo).ToList(); ;
 			var reportDataTable = new DataTable();
 			//reportDataTable.Columns.Add(new DataColumn() { ColumnName = "NO", DataType = typeof(int) });
 			reportDataTable.Columns.Add(new DataColumn() { ColumnName = "NO PEB", DataType = typeof(string) });
